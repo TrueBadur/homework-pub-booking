@@ -119,32 +119,34 @@ def verify_dataflow(flyer_content: str) -> IntegrityResult:
     if not flyer_content or not flyer_content.strip():
         return IntegrityResult(ok=True, summary="no facts to verify (empty flyer)")
 
-    facts_to_check: list[str] = []
-    facts_to_check.extend(extract_money_facts(flyer_content))
-    facts_to_check.extend(extract_temperature_facts(flyer_content))
-    facts_to_check.extend(extract_condition_facts(flyer_content))
-
-    # De-dupe while preserving order
-    seen: set[str] = set()
-    deduped: list[str] = []
-    for f in facts_to_check:
-        key = f.lower().strip()
-        if key not in seen:
-            seen.add(key)
-            deduped.append(f)
-
-    if not deduped:
-        return IntegrityResult(
-            ok=True, summary="no extractable facts in flyer (verified vacuously)"
-        )
-
     verified: list[str] = []
     unverified: list[str] = []
-    for fact in deduped:
-        if fact_appears_in_log(fact):
-            verified.append(fact)
+
+    # 1. Check structured facts via data-testid (most accurate)
+    test_id_facts = extract_testid_facts(flyer_content)
+    for k, v in test_id_facts.items():
+        if fact_appears_in_log(v):
+            verified.append(f"{k}: {v}")
         else:
-            unverified.append(fact)
+            unverified.append(f"{k}: {v}")
+
+    # 2. Additional check via regex (catches facts not wrapped in testids)
+    extra_facts: list[str] = []
+    extra_facts.extend(extract_money_facts(flyer_content))
+    extra_facts.extend(extract_temperature_facts(flyer_content))
+    extra_facts.extend(extract_condition_facts(flyer_content))
+
+    # De-dupe these extra facts
+    for f in extra_facts:
+        # If we already verified this string via test-id, skip the redundant regex check
+        if any(f in v for v in verified):
+            continue
+        if fact_appears_in_log(f):
+            if f not in verified:
+                verified.append(f)
+        else:
+            if f not in unverified:
+                unverified.append(f)
 
     if unverified:
         return IntegrityResult(
@@ -154,13 +156,18 @@ def verify_dataflow(flyer_content: str) -> IntegrityResult:
             summary=(
                 f"dataflow FAIL: {len(unverified)} unverified fact(s): "
                 f"{unverified[:5]}" + ("..." if len(unverified) > 5 else "")
-            ),
+            )
+        )
+
+    if not verified:
+        return IntegrityResult(
+            ok=True, summary="no extractable facts in flyer (verified vacuously)"
         )
 
     return IntegrityResult(
         ok=True,
         verified_facts=verified,
-        summary=f"dataflow OK: verified {len(verified)} fact(s) against tool outputs",
+        summary=f"dataflow OK: verified {len(verified)} fact(s) against tool outputs"
     )
 
 
