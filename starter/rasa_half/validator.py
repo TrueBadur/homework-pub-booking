@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 
 
 @dataclass
@@ -140,19 +141,30 @@ _MONTH_NAMES = {
 def _normalise_date(raw: str) -> str:
     s = str(raw).strip().lower()
     if s == "today":
-        return "2026-04-25"
+        return datetime.now().strftime("%Y-%m-%d")
     if s == "tomorrow":
-        return "2026-04-26"
+        return (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+
     if re.fullmatch(r"\d{4}-\d{2}-\d{2}", s):
         return s
+
     m = re.match(r"(\d{1,2})(?:st|nd|rd|th)?\s+(\w+)(?:\s+(\d{4}))?", s)
     if m:
         day = int(m.group(1))
         month_name = m.group(2)
         year = int(m.group(3)) if m.group(3) else 2026
+
         if month_name not in _MONTH_NAMES:
             raise ValidationFailed(f"unknown month: {month_name!r}")
-        return f"{year:04d}-{_MONTH_NAMES[month_name]:02d}-{day:02d}"
+
+        month = _MONTH_NAMES[month_name]
+        if not (1 <= day <= 31):
+            raise ValidationFailed(f"invalid day: {day}")
+        if not (1 <= month <= 12):
+            raise ValidationFailed(f"invalid month: {month}")
+
+        return f"{year:04d}-{month:02d}-{day:02d}"
+
     raise ValidationFailed(f"cannot parse date: {raw!r}")
 
 
@@ -195,10 +207,14 @@ def parse_time_24h(raw: str) -> str:
         h = int(m.group(1))
         mm = int(m.group(2) or 0)
         ampm = m.group(3)
-        if ampm == "pm" and h < 12:
-            h += 12
+        if not (1 <= h <= 12):
+            raise ValidationFailed(f"cannot parse time: {raw!r}")
         if ampm == "am" and h == 12:
             h = 0
+        elif ampm == "pm" and h != 12:
+            h += 12
+        if not (0 <= mm <= 59):
+            raise ValidationFailed(f"cannot parse time: {raw!r}")
         return f"{h:02d}:{mm:02d}"
     raise ValidationFailed(f"cannot parse time: {raw!r}")
 
