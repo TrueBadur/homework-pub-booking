@@ -2,26 +2,24 @@
 
 ## Your answer
 
-The RasaStructuredHalf subclass overrides run() to POST a booking
-intent to Rasa's REST webhook and interpret the response. Input
-payload flows: loop half produces raw booking data → StructuredHalf
-calls normalise_booking_payload (via validator.py) to produce a
-Rasa-shaped message with canonical types → urllib POST to Rasa →
-parse response for {action: committed} or {action: rejected} custom
-slots.
+The RasaStructuredHalf subclass overrides run() to send a booking intent to Rasa’s REST webhook and process the
+response.
 
-For offline mode we spawn a stdlib http.server thread that mimics a
-Rasa webhook. It always confirms, which is enough for unit tests.
-Rejection is exercised in Ex7 where the loop half's arguments drive
-the decision.
+### Dataflow & Execution
 
-Three design choices worth noting: (1) we raise ValidationFailed in
-normalise_booking_payload and catch it in run() rather than letting
-it propagate; the StructuredHalf contract demands a HalfResult. (2)
-Network errors return success=False with SA_EXT_SERVICE_UNAVAILABLE
-— the caller decides whether to retry. (3) The stable sender_id is a
-hash of (venue+date+time) so the Rasa tracker is consistent across
-retries within one session.
+1. Payload Pipeline: The loop half generates raw booking data $\rightarrow$ StructuredHalf
+runs normalise_booking_payload (via validator.py) to convert it into a canonical, Rasa-compatible message $\rightarrow$
+sent via urllib POST $\rightarrow$ response parsed for custom {action: committed} or {action: rejected} slots.
+2. Offline Testing: A standard library http.server thread mimics the Rasa webhook. For basic unit tests, it always returns a
+confirmation. To test rejections, Exercise 7 uses specific loop half arguments to trigger a rejected response.
+### Key DesignChoices
+- Exception Handling: ValidationFailed is raised in normalise_booking_payload and caught directly within run() to
+satisfy the StructuredHalf contract, which requires returning a HalfResult.
+- Network Failures: Connection errors return
+success=False along with an SA_EXT_SERVICE_UNAVAILABLE status, leaving retry logic to the caller.
+- Session Consistency:
+The sender_id is a stable hash of (venue+date+time), ensuring the Rasa tracker remains consistent across retries in a
+single session.
 
 ## Citations
 

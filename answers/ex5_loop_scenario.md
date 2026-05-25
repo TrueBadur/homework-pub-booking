@@ -2,25 +2,19 @@
 
 ## Your answer
 
-The planner produced two subgoals: sg_1 (research venues near Haymarket
-for a party of 6, assigned to loop) and sg_2 (produce a flyer with the
-chosen venue, weather, and cost, also loop). Both ran in the same
-executor session.
+The planner generated two subgoals for the loop executor session: sg_1 (find a Haymarket venue for 6 people) and sg_2 (create a flyer with the venue, weather, and cost details).
 
-Turn 1 called venue_search, get_weather, and calculate_cost in parallel
-— all three are parallel_safe because they only read fixtures. Turn 2
-wrote the flyer via generate_flyer (parallel_safe=False because it
-writes a file). Turn 3 called complete_task.
+The execution proceeded in three turns:
 
-The dataflow integrity check caught one issue during development: the
-template for "no deposit required" originally read "total under £300
-threshold", which put £300 in the flyer prose. That value was never
-returned by any tool — it's a rule threshold, not data. I simplified
-the phrasing to "No deposit required for this booking." Without the
-integrity check this would have slipped past review because £300 looks
-like a reasonable number in the right context.
+Turn 1: Executed venue_search, get_weather, and calculate_cost concurrently. These read-only operations are marked parallel_safe.
+
+Turn 2: Ran generate_flyer, which is not parallel_safe because it writes a file.
+
+Turn 3: Finalized the process via complete_task.
+
+During development, a dataflow integrity check flagged an issue in the flyer text. The template originally used a hardcoded rule threshold ("total under £300 threshold"), which inserted "£300" into the prose despite it not being returned by any data tool. Because £300 appeared contextually plausible, it likely would have bypassed manual review. To fix this and maintain data integrity, the text was simplified to: "No deposit required for this booking."
 
 ## Citations
 
-- sessions/sess_*/logs/trace.jsonl — tool call sequence
-- sessions/sess_*/workspace/flyer.md — the produced flyer
+- sessions/ex5-edinburgh-research/sess_*/logs/trace.jsonl — tool call sequence
+- sessions/ex5-edinburgh-research/sess_*/workspace/flyer.md — the produced flyer

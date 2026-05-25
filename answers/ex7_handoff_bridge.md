@@ -2,29 +2,11 @@
 
 ## Your answer
 
-The HandoffBridge orchestrates round-trips between the loop half and
-structured half. Each round: loop runs, if next_action=handoff_to_structured
-the bridge writes a forward handoff file, invokes structured, and then
-either marks the session complete (structured confirmed) or builds a
-reverse task and loops back (structured escalated).
+The HandoffBridge orchestrates the execution loop between the loop half and the structured half. In each round, the loop half runs, and if the next action requires a handoff to the structured half, the bridge creates a forward handoff file and invokes structured execution. Depending on the outcome, the bridge either marks the session as complete if the structured half confirms the booking, or it builds a reverse task to loop back if the structured half escalates.
 
-The reverse-task path is the interesting one. On escalation, the
-bridge rewrites the initial_task into a dict that contains
-prior_result + rejection_reason + retry=True. The loop half sees
-this via the new executor invocation and — in a real LLM setting —
-would produce a different subgoal. In the scripted offline demo we
-hardcode the retry choice (royal_oak with 16 seats) so the test is
-deterministic.
+The escalation path is particularly notable. Upon escalation, the bridge modifies the initial task into a dictionary containing the prior result, the rejection reason, and a retry flag. In a production environment with an LLM, this new executor invocation would prompt the model to generate a different subgoal. However, for the scripted offline demo, the retry choice is hardcoded to a specific venue and seat count to ensure the test remains deterministic.
 
-Every half transition emits a session.state_changed trace event via
-session.append_trace_event(). The integrity check (integrity.py)
-verifies the trace has at least one round_start, at least one
-state_changed, and at least one tool call — catching the case where
-the bridge reports success without doing real work.
-
-The stale-handoff cleanup moves old ipc/handoff_to_structured.json
-files into logs/handoffs/ instead of deleting them, preserving the
-audit trail.
+System state and audit logging are managed at key transition points. Every half transition emits a state change event via the session trace. To ensure the process did actual work before reporting success, an integrity check verifies that the trace contains at least one round start, one state change, and one tool call. Additionally, rather than deleting old inter-process communication files during cleanup, the system moves stale handoff files into a dedicated log directory to preserve the audit trail.
 
 ## Citations
 

@@ -22,7 +22,7 @@ from sovereign_agent import ToolError
 from sovereign_agent.session.directory import Session
 from sovereign_agent.tools.registry import ToolRegistry, ToolResult, _RegisteredTool
 
-from .integrity import record_tool_call, _TOOL_CALL_LOG
+from .integrity import _TOOL_CALL_LOG, record_tool_call
 
 _SAMPLE_DATA = Path(__file__).parent / "sample_data"
 
@@ -31,18 +31,18 @@ def venue_search(near: str, party_size: int, budget_max_gbp: int = 1000) -> Tool
     """Search for Edinburgh venues near <near> that can seat the party.
 
     Reads sample_data/venues.json. Filters by area, party size, and budget.
-    
-    If results are found, choose one and proceed to get_weather. 
+
+    If results are found, choose one and proceed to get_weather.
     If no results are found, try a different 'near' area.
-    
-    IMPORTANT: If you have already found a suitable venue in previous calls, 
+
+    IMPORTANT: If you have already found a suitable venue in previous calls,
     STOP searching and proceed to calculate_cost. Do NOT spiral.
     """
     try:
         with open(_SAMPLE_DATA / "venues.json") as f:
             venues = json.load(f)
     except FileNotFoundError:
-        raise ToolError("SA_TOOL_DEPENDENCY_MISSING", "venues.json fixture is missing")
+        raise ToolError("SA_TOOL_DEPENDENCY_MISSING", "venues.json fixture is missing") from None
 
     previous_calls = [r for r in _TOOL_CALL_LOG if r.tool_name == "venue_search"]
     search_count = len(previous_calls)
@@ -52,9 +52,9 @@ def venue_search(near: str, party_size: int, budget_max_gbp: int = 1000) -> Tool
         for call in previous_calls:
             if call.output.get("results"):
                 found_venues.extend([v.get("id") for v in call.output["results"]])
-        
+
         useful_message = f"Venues already identified: {list(set(found_venues))}" if found_venues else "No venues found in previous areas."
-        
+
         return ToolResult(
             success=False,
             output={"error": "too_many_searches", "count": search_count, "previous_results": found_venues},
@@ -70,11 +70,11 @@ def venue_search(near: str, party_size: int, budget_max_gbp: int = 1000) -> Tool
             continue
         if v.get("seats_available_evening", 0) < party_size:
             continue
-        
+
         cost_floor = v.get("hire_fee_gbp", 0) + v.get("min_spend_gbp", 0)
         if cost_floor > budget_max_gbp:
             continue
-            
+
         results.append(v)
 
     output = {
@@ -84,7 +84,7 @@ def venue_search(near: str, party_size: int, budget_max_gbp: int = 1000) -> Tool
         "count": len(results),
     }
     record_tool_call("venue_search", {"near": near, "party_size": party_size, "budget_max_gbp": budget_max_gbp}, output)
-    
+
     return ToolResult(
         success=True,
         output=output,
@@ -120,7 +120,7 @@ def get_weather(city: str, date: str) -> ToolResult:
         with open(_SAMPLE_DATA / "weather.json") as f:
             weather_data = json.load(f)
     except FileNotFoundError:
-        raise ToolError("SA_TOOL_DEPENDENCY_MISSING", "weather.json fixture is missing")
+        raise ToolError("SA_TOOL_DEPENDENCY_MISSING", "weather.json fixture is missing") from None
 
     city_key = city.lower()
     city_weather = weather_data.get(city_key)
@@ -202,7 +202,7 @@ def calculate_cost(
         with open(_SAMPLE_DATA / "venues.json") as f:
             venues = json.load(f)
     except FileNotFoundError as e:
-        raise ToolError("SA_TOOL_DEPENDENCY_MISSING", f"Missing fixture: {e.filename}")
+        raise ToolError("SA_TOOL_DEPENDENCY_MISSING", f"Missing fixture: {e.filename}") from e
 
     venue = next((v for v in venues if v["id"] == venue_id), None)
     if not venue:
@@ -213,10 +213,10 @@ def calculate_cost(
 
     base_per_head = cat["base_rates_gbp_per_head"][catering_tier]
     venue_mult = cat["venue_modifiers"].get(venue_id, 1.0)
-    
+
     subtotal = base_per_head * venue_mult * party_size * max(1, duration_hours)
     service = subtotal * (cat["service_charge_percent"] / 100)
-    
+
     venue_floor = venue.get("hire_fee_gbp", 0) + venue.get("min_spend_gbp", 0)
     total = subtotal + service + venue_floor
 
@@ -284,7 +284,7 @@ def generate_flyer(session: Session, event_details: dict) -> ToolResult:
         <article>
             <h1>Event Flyer: <span data-testid="venue_name">{venue_name}</span></h1>
             <p><strong>Location:</strong> <span data-testid="venue_address">{venue_address}</span></p>
-            
+
             <section>
                 <h2>Event Details</h2>
                 <dl>
@@ -308,7 +308,7 @@ def generate_flyer(session: Session, event_details: dict) -> ToolResult:
     </body>
     </html>
     """
-    
+
     # Ensure all required fields exist for the template to avoid KeyError
     defaults = {
         "venue_name": "N/A",
@@ -325,7 +325,7 @@ def generate_flyer(session: Session, event_details: dict) -> ToolResult:
     content = html_template.format(**merged_details)
     path = session.workspace_dir / "flyer.html"
     path.write_text(content)
-    
+
     output = {"path": "workspace/flyer.html", "bytes_written": len(content)}
     record_tool_call("generate_flyer", {"event_details": event_details}, output)
 

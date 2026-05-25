@@ -89,7 +89,7 @@ class ManagerPersona:
         shown below keeps everything — fine for short conversations.
         """
         msgs: list[ChatMessage] = [ChatMessage(role="system", content=self.system_prompt)]
-        for turn in self.history:
+        for turn in self.history[-60:]:
             msgs.append(ChatMessage(role="user", content=turn.user_utterance))
             msgs.append(ChatMessage(role="assistant", content=turn.manager_response))
         msgs.append(ChatMessage(role="user", content=utterance))
